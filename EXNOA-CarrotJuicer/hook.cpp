@@ -309,7 +309,7 @@ namespace
 				MH_CreateHook(localize_jp_get_addr_offset, localize_jp_get_hook, &localize_jp_get_orig);
 
 				// Extract the text
-				for (int i = 0; i <= 18446744073709551615; i++)
+				for (int i = 0; i <= 99999; i++)
 				{
 					Il2CppString* jp_text = reinterpret_cast<decltype(localize_jp_get_hook)*>(localize_jp_get_orig)(i);
 
