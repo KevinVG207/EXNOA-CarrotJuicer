@@ -24,7 +24,8 @@ namespace
 
 	bool tl_first_check = true;
 	std::filesystem::file_time_type tl_last_modified;
-	std::map<int, std::string> textid_to_text;
+	std::map<std::string, std::string> textid_to_text;
+	std::map<int, std::string> textid_to_enum_string;
 
 
 	bool file_exists(std::string file_path)
@@ -106,18 +107,15 @@ namespace
 				continue;
 			}
 
-			// Convert textid to int
-			int textid_int = std::stoi(textid);
-
 			// Debug print
-			printf("textid: %d, translation: %s\n", textid_int, translation.c_str());
+			printf("textid: %s, translation: %s\n", textid.c_str(), translation.c_str());
 
 			replaceAll(translation, "\\n", "\n");
 			replaceAll(translation, "\\r", "\r");
 			replaceAll(translation, "\\\"", "\"");
 
 			// Add to map
-			textid_to_text[textid_int] = translation;
+			textid_to_text[textid] = translation;
 		}
 	}
 
@@ -312,30 +310,36 @@ namespace
 	{
 		auto orig_result = reinterpret_cast<decltype(localize_jp_get_hook)*>(localize_jp_get_orig)(id);
 
-		if (id != 1030 && id != 1107)  // Don't print annoying time strings
-		{
-			std::string unicode = il2cppstring_to_jsonstring(orig_result->start_char);
-			printf("GET ID: %d: %s\n", id, unicode.c_str());
-		}
+		printf("JP_GET ID: %d\n", id);
+
+		// if (id != 1030 && id != 1107)  // Don't print annoying time strings
+		// {
+		// 	std::string unicode = il2cppstring_to_jsonstring(orig_result->start_char);
+		// 	printf("GET ID: %d: %s\n", id, unicode.c_str());
+		// }
 
 		// If id is in tl dict, return translation
-		if (textid_to_text.find(id) != textid_to_text.end())
+		if (textid_to_enum_string.find(id) != textid_to_enum_string.end() && textid_to_text.find(textid_to_enum_string[id]) != textid_to_text.end())
 		{
 			// Convert translation to wstring
-			std::string* translation_str = &textid_to_text[id];
+			std::string translation_str = textid_to_text[textid_to_enum_string[id]];
 
-			return il2cpp_string_new(translation_str->data());
+			if (translation_str.find("{") != std::string::npos)
+			{
+				// Add <force> to the start of the string.
+				translation_str = "<force>" + translation_str;
+			}
+
+			return il2cpp_string_new(translation_str.data());
 		}
 
 		return orig_result;
 	}
 
-	void* textcommon_setid_orig = nullptr;
-	void* textcommon_setid_hook (void* _this, int id)
+	void* textcommon_settextid_orig = nullptr;
+	void* textcommon_settextid_hook (void* _this, int id)
 	{
-		printf("SETID: %d\n", id);
-
-		return reinterpret_cast<decltype(textcommon_setid_hook)*>(textcommon_setid_orig) (
+		return reinterpret_cast<decltype(textcommon_settextid_hook)*>(textcommon_settextid_orig) (
 			_this, id
 			);
 	}
@@ -350,17 +354,18 @@ namespace
 
 
 
-	void dump_text_db(void* textcommon_object)
+	void index_text(void* textcommon_object)
 	{
+		printf("Indexing text\n");
+		bool dump = false;
 		// Dump DB to file
 		std::string file_name = "db_dump.json";
-		if (!file_exists(file_name))
+		if (file_exists(file_name))
 		{
-			printf("db_dump.json not found, skipping.\n");
-			return;
+			dump = true;
+			printf("Dumping DB to file\n");
 		}
 
-		printf("Dumping DB to file\n");
 
 		std::ofstream outfile;
 		outfile.open(file_name, std::ios_base::trunc);
@@ -370,9 +375,9 @@ namespace
 		// Create an array to store the text
 		// Extract the text
 		bool first = true;
-		for (int i = 0; i <= 99999; i++)
+		for (int i = 1; i <= 6000; i++)
 		{
-			textcommon_setid_hook(textcommon_object, i);
+			textcommon_settextid_hook(textcommon_object, i);
 			Il2CppString* text_id_string = textcommon_gettextidstring_hook(textcommon_object);
 			Il2CppString* jp_text = reinterpret_cast<decltype(localize_jp_get_hook)*>(localize_jp_get_orig)(i);
 
@@ -380,6 +385,12 @@ namespace
 			{
 				continue;
 			}
+
+
+			// Index
+			textid_to_enum_string[i] = il2cppstring_to_utf8(text_id_string->start_char);
+			// First replace on localize_jp_get
+			// Then replace again on textcommon_gettext EXCEPT if <force> in text
 
 			if (!first)
 			{
@@ -419,7 +430,7 @@ namespace
 		std::string unicode = il2cppstring_to_utf8(str->start_char);
 
 		std::string unicode2 = il2cppstring_to_jsonstring(str->start_char);
-		printf("TEXT: %s\n", unicode2.c_str());
+		printf("POPULATE: %s\n", unicode2.c_str());
 
 		// if string starts with <nb>
 		if (unicode.find("<nb>") != std::string::npos)
@@ -433,6 +444,11 @@ namespace
 			replaceAll(unicode, "\n", "");
 			settings->horizontalOverflow = 0;
 		}
+		if (unicode.find("<force>") != std::string::npos)
+		{
+			// Simply remove it.
+			replaceAll(unicode, "<force>", "");
+		}
 
 		Il2CppString* new_str = il2cpp_string_new(unicode.c_str());
 
@@ -441,27 +457,27 @@ namespace
 			);
 	}
 
-	void* localize_extension_text_orig = nullptr;
-	Il2CppString* localize_extension_text_hook(int id, int region)
-	{
-		auto orig_result = reinterpret_cast<decltype(localize_extension_text_hook)*>(localize_extension_text_orig)(id, region);
+	// void* localize_extension_text_orig = nullptr;
+	// Il2CppString* localize_extension_text_hook(int id, int region)
+	// {
+	// 	auto orig_result = reinterpret_cast<decltype(localize_extension_text_hook)*>(localize_extension_text_orig)(id, region);
 
-		std::string unicode = il2cppstring_to_jsonstring(orig_result->start_char);
-		printf("EXTENSION ID: %d: %s\n", id, unicode.c_str());
+	// 	std::string unicode = il2cppstring_to_jsonstring(orig_result->start_char);
+	// 	printf("EXTENSION ID: %d: %s\n", id, unicode.c_str());
 
-		return orig_result;
-	}
+	// 	return orig_result;
+	// }
 
-	void* localize_get_orig = nullptr;
-	Il2CppString* localize_get_hook(int id)
-	{
-		auto orig_result = reinterpret_cast<decltype(localize_get_hook)*>(localize_get_orig)(id);
+	// void* localize_get_orig = nullptr;
+	// Il2CppString* localize_get_hook(int id)
+	// {
+	// 	auto orig_result = reinterpret_cast<decltype(localize_get_hook)*>(localize_get_orig)(id);
 
-		std::string unicode = il2cppstring_to_jsonstring(orig_result->start_char);
-		printf("GET2 ID: %d: %s\n", id, unicode.c_str());
+	// 	std::string unicode = il2cppstring_to_jsonstring(orig_result->start_char);
+	// 	printf("GET2 ID: %d: %s\n", id, unicode.c_str());
 
-		return orig_result;
-	}
+	// 	return orig_result;
+	// }
 
 
 	void* textcommon_gettextid_orig = nullptr;
@@ -485,25 +501,69 @@ namespace
 			_this
 			);
 
-		std::string id_string = il2cppstring_to_jsonstring(textcommon_gettextidstring_hook(_this)->start_char);
+		std::string id_string = il2cppstring_to_utf8(textcommon_gettextidstring_hook(_this)->start_char);
 
 		std::string unicode = il2cppstring_to_jsonstring(str->start_char);
 
-		printf("===SETTEXT===\n");
-		printf("ID: %d\n", textid);
-		printf("ID STRING: %s\n", id_string.c_str());
-		printf("TEXT: %s\n", unicode.c_str());
+		// printf("===SETTEXT===\n");
+		// printf("ID: %d\n", textid);
+		// printf("ID STRING: %s\n", id_string.c_str());
+		// printf("TEXT: %s\n", unicode.c_str());
 
-		if (first_textcommon)
-		{
-			first_textcommon = false;
-			dump_text_db(_this);
-			textcommon_setid_hook(_this, textid);
-		}
+		// if (first_textcommon)
+		// {
+		// 	first_textcommon = false;
+		// 	dump_text_db(_this);
+		// 	textcommon_settextid_hook(_this, textid);
+		// }
+
+		// // If id is in tl dict, return translation
+		// if (textid_to_text.find(id_string) != textid_to_text.end())
+		// {
+		// 	// Convert translation to wstring
+		// 	std::string* translation_str = &textid_to_text[id_string];
+
+		// 	printf("REPLACE %s with %s\n", unicode.c_str(), translation_str->c_str());
+
+		// 	return il2cpp_string_new(translation_str->data());
+		// }
 
 		return reinterpret_cast<decltype(textcommon_settext_hook)*>(textcommon_settext_orig) (
 			_this, str
 			);
+	}
+
+	void* textcommon_gettext_orig = nullptr;
+	Il2CppString* textcommon_gettext_hook (void* _this)
+	{
+		auto orig_result = reinterpret_cast<decltype(textcommon_gettext_hook)*>(textcommon_gettext_orig) (
+			_this
+			);
+
+		std::string unicode = il2cppstring_to_jsonstring(orig_result->start_char);
+
+		std::string id_string = il2cppstring_to_utf8(textcommon_gettextidstring_hook(_this)->start_char);
+		
+		printf("GETTEXT %s: %s\n", id_string.c_str(), unicode.c_str());
+
+		if (unicode.find("<force>") != std::string::npos)
+		{
+			replaceAll(unicode, "<force>", "");
+			return orig_result;
+		}
+
+		// If id is in tl dict, return translation
+		if (textid_to_text.find(id_string) != textid_to_text.end())
+		{
+			// Convert translation to wstring
+			std::string* translation_str = &textid_to_text[id_string];
+
+			// printf("REPLACE %s with %s\n", unicode.c_str(), translation_str->c_str());
+
+			return il2cpp_string_new(translation_str->data());
+		}
+
+		return orig_result;
 	}
 
 
@@ -537,9 +597,6 @@ namespace
 			printf("Domain: %p\n", domain);
 
 
-
-
-
 			auto assembly2 = il2cpp_domain_assembly_open(domain, "UnityEngine.TextRenderingModule.dll");
 			printf("Assembly2: %p\n", assembly2);
 			auto image2 = il2cpp_assembly_get_image(assembly2);
@@ -555,14 +612,6 @@ namespace
 
 
 
-			// auto populate_with_errors_addr = get_method_pointer(
-			// "UnityEngine.TextRenderingModule.dll",
-			// "UnityEngine", "TextGenerator",
-			// "PopulateWithErrors", 3
-			// )
-
-
-
 			printf("1aaa\n");
 
 			auto assembly = il2cpp_domain_assembly_open(domain, "umamusume.dll");
@@ -575,72 +624,20 @@ namespace
 			printf("Image: %p\n", image);
 
 
-			// const auto system_runtime_module = GetModuleHandle(L"System.Runtime.dll");
-			// printf("System.Runtime.dll at %p\n", system_runtime_module);
-
-			// const auto enum_class = il2cpp_class_from_name(system_runtime_module, "System", "Enum");
-			// printf("enum_class: %p\n", enum_class);
-
-			// const auto enum_getnames_addr = il2cpp_class_get_method_from_name(enum_class, "GetNames", 1)->methodPointer;
-			// printf("enum_getnames_addr: %p\n", enum_getnames_addr);
-
-			// while (true)
-			// {
-			// 	continue;
-			// }
-
-
-			// // Get TextId enum that is umamusume.dll Gallop TextId
-			// auto textid_enum_class = il2cpp_class_from_name(image, "Gallop", "TextId");
-			// printf("textid_enum: %p\n", textid_enum_class);
-
-			// auto textid_enum_basetype = il2cpp_class_enum_basetype(textid_enum_class);
-			// printf("textid_enum_basetype: %p\n", textid_enum_basetype);
-
-
-			// void* iter = nullptr;
-			// printf("f");
-			// while (const MethodInfo* method = il2cpp_class_get_methods(textid_enum_class, &iter))
-			// {
-			// 	printf("method: %p\n", method->name);
-			// }
-
-			// printf("g");
-
-
-			// while (true)
-			// {
-			// 	continue;
-			// }
-
-
-			// auto localize_extension_class = il2cpp_class_from_name(image, "Gallop", "LocalizeExtention");
-			// printf("localize_extension_class: %p\n", localize_extension_class);
-
-			// auto localize_extension_text_addr = il2cpp_class_get_method_from_name(localize_extension_class, "GetInsertHalfSizeSpace", 2)->methodPointer;
-			// printf("localize_extension_text_addr: %p\n", localize_extension_text_addr);
-
-			// auto localize_extension_text_addr_offset = reinterpret_cast<void*>(localize_extension_text_addr);
-			// printf("localize_extension_text_addr_offset: %p\n", localize_extension_text_addr_offset);
-
-			// MH_CreateHook(localize_extension_text_addr_offset, localize_extension_text_hook, &localize_extension_text_orig);
-			// MH_EnableHook(localize_extension_text_addr_offset);
-
-
 			auto textcommon_class = il2cpp_class_from_name(image, "Gallop", "TextCommon");
 			printf("textcommon_class: %p\n", textcommon_class);
 
 
 
 
-			auto textcommon_setid_addr = il2cpp_class_get_method_from_name(textcommon_class, "set_TextId", 1)->methodPointer;
-			printf("textcommon_setid_addr: %p\n", textcommon_setid_addr);
+			auto textcommon_settextid_addr = il2cpp_class_get_method_from_name(textcommon_class, "set_TextId", 1)->methodPointer;
+			printf("textcommon_settextid_addr: %p\n", textcommon_settextid_addr);
 
-			auto textcommon_setid_addr_offset = reinterpret_cast<void*>(textcommon_setid_addr);
-			printf("textcommon_setid_addr_offset: %p\n", textcommon_setid_addr_offset);
+			auto textcommon_settextid_addr_offset = reinterpret_cast<void*>(textcommon_settextid_addr);
+			printf("textcommon_settextid_addr_offset: %p\n", textcommon_settextid_addr_offset);
 
-			MH_CreateHook(textcommon_setid_addr_offset, textcommon_setid_hook, &textcommon_setid_orig);
-			MH_EnableHook(textcommon_setid_addr_offset);
+			MH_CreateHook(textcommon_settextid_addr_offset, textcommon_settextid_hook, &textcommon_settextid_orig);
+			MH_EnableHook(textcommon_settextid_addr_offset);
 
 
 			auto textcommon_gettextid_addr = il2cpp_class_get_method_from_name(textcommon_class, "get_TextId", 0)->methodPointer;
@@ -676,10 +673,14 @@ namespace
 			MH_EnableHook(textcommon_settext_addr_offset);
 
 
+			auto textcommon_gettext_addr = il2cpp_class_get_method_from_name(textcommon_class, "get_text", 0)->methodPointer;
+			printf("textcommon_gettext_addr: %p\n", textcommon_gettext_addr);
 
+			auto textcommon_gettext_addr_offset = reinterpret_cast<void*>(textcommon_gettext_addr);
+			printf("textcommon_gettext_addr_offset: %p\n", textcommon_gettext_addr_offset);
 
-
-
+			MH_CreateHook(textcommon_gettext_addr_offset, textcommon_gettext_hook, &textcommon_gettext_orig);
+			MH_EnableHook(textcommon_gettext_addr_offset);
 
 
 			printf("3\n");
