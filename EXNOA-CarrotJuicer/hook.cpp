@@ -505,17 +505,17 @@ namespace
 
 		std::string unicode = il2cppstring_to_jsonstring(str->start_char);
 
-		// printf("===SETTEXT===\n");
-		// printf("ID: %d\n", textid);
-		// printf("ID STRING: %s\n", id_string.c_str());
-		// printf("TEXT: %s\n", unicode.c_str());
+		printf("===SETTEXT===\n");
+		printf("ID: %d\n", textid);
+		printf("ID STRING: %s\n", id_string.c_str());
+		printf("TEXT: %s\n", unicode.c_str());
 
-		// if (first_textcommon)
-		// {
-		// 	first_textcommon = false;
-		// 	dump_text_db(_this);
-		// 	textcommon_settextid_hook(_this, textid);
-		// }
+		if (first_textcommon)
+		{
+			first_textcommon = false;
+			index_text(_this);
+			textcommon_settextid_hook(_this, textid);
+		}
 
 		// // If id is in tl dict, return translation
 		// if (textid_to_text.find(id_string) != textid_to_text.end())
