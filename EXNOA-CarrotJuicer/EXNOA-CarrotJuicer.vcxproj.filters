@@ -96,6 +96,9 @@
     <ClInclude Include="requests.hpp">
       <Filter>Source Files\requests</Filter>
     </ClInclude>
+    <ClInclude Include="hook.hpp">
+      <Filter>Source Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="EXNOA-CarrotJuicer.rc">
