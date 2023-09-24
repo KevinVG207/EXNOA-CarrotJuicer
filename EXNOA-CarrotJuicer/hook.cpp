@@ -660,6 +660,7 @@ namespace
 			printf("textcommon_gettextidstring_addr_offset: %p\n", textcommon_gettextidstring_addr_offset);
 
 			MH_CreateHook(textcommon_gettextidstring_addr_offset, textcommon_gettextidstring_hook, &textcommon_gettextidstring_orig);
+			MH_EnableHook(textcommon_gettextidstring_addr_offset);
 
 
 
