@@ -21,6 +21,26 @@ using namespace std::literals;
 namespace
 {
 	il2cpp_string_new_t il2cpp_string_new = nullptr;
+	std::map<int, std::string> text_id_to_string;
+	std::map<std::string, std::string> text_id_string_to_translation;
+	bool tl_first_check = true;
+	std::filesystem::file_time_type tl_last_modified;
+
+	void* find_nested_class_by_name(void* klass, const char* name)
+	{
+		il2cpp_class_get_nested_types_t il2cpp_class_get_nested_types = reinterpret_cast<il2cpp_class_get_nested_types_t>(GetProcAddress(GetModuleHandle(L"GameAssembly.dll"), "il2cpp_class_get_nested_types"));
+
+		void* iter{};
+		while (const auto curNestedClass = il2cpp_class_get_nested_types(klass, &iter))
+		{
+			if (static_cast<bool>(std::string_view(name) ==
+								static_cast<Il2CppClassHead*>(curNestedClass)->name))
+			{
+				return curNestedClass;
+			}
+		}
+		return nullptr;
+	}
 
 	bool file_exists(std::string file_path)
 	{
@@ -64,6 +84,71 @@ namespace
 		replaceAll(unicode, "\"", "\\\"");
 
 		return unicode;
+	}
+
+
+	void import_translations()
+	{
+		std::string file_name = "translations.txt";
+
+		if (!file_exists(file_name))
+		{
+			printf("No translations.txt found\n");
+			return;
+		}
+
+		if (tl_first_check)
+		{
+			tl_first_check = false;
+			tl_last_modified = std::filesystem::last_write_time(file_name);
+		}
+		else
+		{
+			auto last_modified = std::filesystem::last_write_time(file_name);
+
+			if (last_modified == tl_last_modified)
+			{
+				printf("No changes to translations.txt\n");
+				return;
+			}
+
+			tl_last_modified = last_modified;
+		}
+
+		printf("Importing translations\n");
+
+		std::ifstream infile(file_name);
+		std::string line;
+		while (std::getline(infile, line))
+		{
+			std::istringstream iss(line);
+
+			std::string textidstring;
+			std::string translation;
+			std::getline(iss, textidstring, '\t');
+			std::getline(iss, translation, '\t');
+
+			if (translation.empty() || translation.length() == 0)
+			{
+				continue;
+			}
+
+			printf("Importing %s: %s\n", textidstring.c_str(), translation.c_str());
+
+			replaceAll(translation, "\\n", "\n");
+			replaceAll(translation, "\\r", "\r");
+			replaceAll(translation, "\\\"", "\"");
+
+			if (translation.find('{') != std::string::npos)
+			{
+				translation = "<force>" + translation;
+			}
+
+			text_id_string_to_translation[textidstring] = translation;
+		}
+
+		printf("Importing translations done\n");
+		return;
 	}
 
 
@@ -156,6 +241,8 @@ namespace
 		int srcSize,
 		int dstCapacity)
 	{
+		import_translations();
+
 		const int ret = reinterpret_cast<decltype(LZ4_compress_default_ext_hook)*>(LZ4_compress_default_ext_orig)(
 			src, dst, srcSize, dstCapacity);
 
@@ -212,9 +299,29 @@ namespace
 	void* populate_with_errors_orig = nullptr;
 	bool populate_with_errors_hook(void* _this, Il2CppString* str, TextGenerationSettings_t* settings, void* context)
 	{
-		std::string str_utf8 = il2cppstring_to_jsonstring(str->start_char);
-		printf("PopulateWithErrors: %s\n", str_utf8.c_str());
-		return reinterpret_cast<decltype(populate_with_errors_hook)*>(populate_with_errors_orig)(_this, str, settings, context);
+		std::string str_utf8 = il2cppstring_to_utf8(str->start_char);
+		std::string str_json = il2cppstring_to_jsonstring(str->start_char);
+		printf("PopulateWithErrors: %s\n", str_json.c_str());
+
+		if (str_utf8.find("<nb>") != std::string::npos)
+		{
+			replaceAll(str_utf8, "<nb>", "");
+			settings->horizontalOverflow = 1;
+		}
+		if (str_utf8.find("<slogan>") != std::string::npos)
+		{
+			replaceAll(str_utf8, "<slogan>", "");
+			replaceAll(str_utf8, "\n", "");
+			settings->horizontalOverflow = 0;
+		}
+		if (str_utf8.find("<force>") != std::string::npos)
+		{
+			replaceAll(str_utf8, "<force>", "");
+		}
+
+		Il2CppString* new_str = il2cpp_string_new(str_utf8.data());
+
+		return reinterpret_cast<decltype(populate_with_errors_hook)*>(populate_with_errors_orig)(_this, new_str, settings, context);
 	}
 
 
@@ -233,27 +340,38 @@ namespace
 	}
 
 
-	bool first_textcommon = true;
-
-	void* textcommon_settext_orig = nullptr;
-	void* textcommon_settext_hook (void* _this, Il2CppString* str)
+	void* textcommon_gettextid_string_orig = nullptr;
+	Il2CppString* textcommon_gettextid_string_hook (void* _this)
 	{
-		// std::string str_utf8 = il2cppstring_to_jsonstring(str->start_char);
-		// printf("TextCommon.set_text: %s\n", str_utf8.c_str());
+		return reinterpret_cast<decltype(textcommon_gettextid_string_hook)*>(textcommon_gettextid_string_orig)(_this);
+	}
 
-		int textid = textcommon_gettextid_hook(_this);
-		printf("TextCommon.set_text: %d\n", textid);
+	void* localize_jp_get_orig = nullptr;
+	Il2CppString* localize_jp_get_hook(int id)
+	{
+		Il2CppString* orig_text = reinterpret_cast<decltype(localize_jp_get_hook)*>(localize_jp_get_orig)(id);
 
-		if (textid > 0 && first_textcommon)
+		printf("=== JP GET ===");
+		printf("ID: %d\n", id);
+		if (text_id_to_string.find(id) == text_id_to_string.end())
 		{
-			// Index text
-			first_textcommon = false;
-			index_text(_this);
-			textcommon_settextid_hook(_this, textid);
+			printf("ID not found\n");
+			return orig_text;
 		}
 
+		std::string textid_string = text_id_to_string[id];
+		printf("TextIdString: %s\n", textid_string.c_str());
+		
+		if (text_id_string_to_translation.find(textid_string) == text_id_string_to_translation.end())
+		{
+			printf("Translation not found\n");
+			return orig_text;
+		}
 
-		return reinterpret_cast<decltype(textcommon_settext_hook)*>(textcommon_settext_orig)(_this, str);
+		std::string translation = text_id_string_to_translation[textid_string];
+		printf("Translation: %s\n", translation.c_str());
+
+		return il2cpp_string_new(translation.data());
 	}
 
 
@@ -276,7 +394,7 @@ namespace
 		}
 
 		bool first = true;
-		for (int i; i <= 6000; i++)
+		for (int i = 1; i <= 6000; i++)
 		{
 			textcommon_settextid_hook(textcommon_obj, i);
 			Il2CppString* textid_string = textcommon_gettextid_string_hook(textcommon_obj);
@@ -289,10 +407,55 @@ namespace
 			std::string textid_string_utf8 = il2cppstring_to_jsonstring(textid_string->start_char);
 			std::string jp_text_utf8 = il2cppstring_to_jsonstring(jp_text->start_char);
 
-			printf("index %s: %s\n", textid_string_utf8.c_str(), jp_text_utf8.c_str());
+			// printf("index %s: %s\n", textid_string_utf8.c_str(), jp_text_utf8.c_str());
+
+			text_id_to_string[i] = textid_string_utf8;
+
+			if (dump)
+			{
+				if (!first)
+				{
+					outfile << ",\n";
+				}
+				first = false;
+
+				outfile << "\t\"" << textid_string_utf8 << "\": \"" << jp_text_utf8 << "\"";
+			}
 		}
+
+		if (dump)
+		{
+			outfile << "\n}";
+			outfile.close();
+		}
+
+		printf("Indexing text done\n");
+		return;
 	}
 
+
+	bool first_textcommon = true;
+
+	void* textcommon_settext_orig = nullptr;
+	void* textcommon_settext_hook (void* _this, Il2CppString* str)
+	{
+		// std::string str_utf8 = il2cppstring_to_jsonstring(str->start_char);
+		// printf("TextCommon.set_text: %s\n", str_utf8.c_str());
+
+		int textid = textcommon_gettextid_hook(_this);
+		// printf("TextCommon.set_text: %d\n", textid);
+
+		if (first_textcommon)
+		{
+			// Index text
+			first_textcommon = false;
+			index_text(_this);
+			textcommon_settextid_hook(_this, textid);
+		}
+
+
+		return reinterpret_cast<decltype(textcommon_settext_hook)*>(textcommon_settext_orig)(_this, str);
+	}
 
 	void* load_library_w_orig = nullptr;
 
@@ -347,8 +510,26 @@ namespace
 			printf("uma_image: %p\n", uma_image);
 
 
+			// LocalizeJP
+			const auto localize_class = il2cpp_class_from_name(uma_image, "Gallop", "Localize");
+			printf("LocalizeJP: %p\n", localize_class);
+
+			const char* name = "JP";
+			const auto localize_jp_class = find_nested_class_by_name(localize_class, name);
+			printf("LocalizeJP: %p\n", localize_jp_class);
+
+			auto localize_jp_get_addr = il2cpp_class_get_method_from_name(localize_jp_class, "Get", 1)->methodPointer;
+			printf("localize_jp_get_addr: %p\n", localize_jp_get_addr);
+
+			auto localize_jp_get_addr_offset = reinterpret_cast<void*>(localize_jp_get_addr);
+			printf("localize_jp_get_addr_offset: %p\n", localize_jp_get_addr_offset);
+
+			MH_CreateHook(localize_jp_get_addr_offset, localize_jp_get_hook, &localize_jp_get_orig);
+			MH_EnableHook(localize_jp_get_addr_offset);
+
+
 			// TextCommon
-			auto textcommon_class = il2cpp_class_from_name(uma_image, "Gallop", "TextCommon");
+			const auto textcommon_class = il2cpp_class_from_name(uma_image, "Gallop", "TextCommon");
 			printf("TextCommon: %p\n", textcommon_class);
 
 			// set_text
@@ -394,6 +575,8 @@ namespace
 
 			MH_CreateHook(textcommon_gettextid_string_addr_offset, textcommon_gettextid_string_hook, &textcommon_gettextid_string_orig);
 			MH_EnableHook(textcommon_gettextid_string_addr_offset);
+
+			import_translations();
 
 			bootstrap_carrot_juicer();
 
