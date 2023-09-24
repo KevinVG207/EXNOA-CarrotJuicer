@@ -51,6 +51,7 @@ namespace
 
 
 	void setup_tl_map(){
+		printf("DDDDDDDDDD\n");
 		printf("Checking tl map\n");
 
 		std::string file_name = "translations.txt";
@@ -113,6 +114,12 @@ namespace
 			replaceAll(translation, "\\n", "\n");
 			replaceAll(translation, "\\r", "\r");
 			replaceAll(translation, "\\\"", "\"");
+
+			if (translation.find("{") != std::string::npos)
+			{
+				// Prepend <force> to translation
+				translation = "<force>" + translation;
+			}
 
 			// Add to map
 			textid_to_text[textid] = translation;
@@ -251,6 +258,7 @@ namespace
 		int dstCapacity)
 	{
 		// Try refreshing the TL map
+		printf("CCCCCCCCCCCCC\n");
 		setup_tl_map();
 
 		const int ret = reinterpret_cast<decltype(LZ4_compress_default_ext_hook)*>(LZ4_compress_default_ext_orig)(
@@ -324,12 +332,6 @@ namespace
 			// Convert translation to wstring
 			std::string translation_str = textid_to_text[textid_to_enum_string[id]];
 
-			if (translation_str.find("{") != std::string::npos)
-			{
-				// Add <force> to the start of the string.
-				translation_str = "<force>" + translation_str;
-			}
-
 			return il2cpp_string_new(translation_str.data());
 		}
 
@@ -344,7 +346,7 @@ namespace
 			);
 	}
 
-		void* textcommon_gettextidstring_orig = nullptr;
+	void* textcommon_gettextidstring_orig = nullptr;
 	Il2CppString* textcommon_gettextidstring_hook (void* _this)
 	{
 		return reinterpret_cast<decltype(textcommon_gettextidstring_hook)*>(textcommon_gettextidstring_orig) (
@@ -736,22 +738,19 @@ namespace
 				printf("localize_jp_get_addr_offset: %p\n", localize_jp_get_addr_offset);
 
 				MH_CreateHook(localize_jp_get_addr_offset, localize_jp_get_hook, &localize_jp_get_orig);
-
-				std::string file_name = "db_dump.json";
+				MH_EnableHook(localize_jp_get_addr_offset);
 
 				printf("7\n");
 
 				// Check if translations file exists
 				setup_tl_map();
 
-				MH_EnableHook(localize_jp_get_addr_offset);
-
 				printf("Done\n");
 			}
 
 
-
 			bootstrap_carrot_juicer();
+
 
 			MH_DisableHook(LoadLibraryW);
 			MH_RemoveHook(LoadLibraryW);
