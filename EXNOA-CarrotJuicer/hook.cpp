@@ -301,7 +301,7 @@ namespace
 	{
 		std::string str_utf8 = il2cppstring_to_utf8(str->start_char);
 		std::string str_json = il2cppstring_to_jsonstring(str->start_char);
-		printf("PopulateWithErrors: %s\n", str_json.c_str());
+		// printf("PopulateWithErrors: %s\n", str_json.c_str());
 
 		if (str_utf8.find("<nb>") != std::string::npos)
 		{
@@ -351,25 +351,25 @@ namespace
 	{
 		Il2CppString* orig_text = reinterpret_cast<decltype(localize_jp_get_hook)*>(localize_jp_get_orig)(id);
 
-		printf("=== JP GET ===");
-		printf("ID: %d\n", id);
+		// printf("=== JP GET ===");
+		// printf("ID: %d\n", id);
 		if (text_id_to_string.find(id) == text_id_to_string.end())
 		{
-			printf("ID not found\n");
+			// printf("ID not found\n");
 			return orig_text;
 		}
 
 		std::string textid_string = text_id_to_string[id];
-		printf("TextIdString: %s\n", textid_string.c_str());
+		// printf("TextIdString: %s\n", textid_string.c_str());
 		
 		if (text_id_string_to_translation.find(textid_string) == text_id_string_to_translation.end())
 		{
-			printf("Translation not found\n");
+			// printf("Translation not found\n");
 			return orig_text;
 		}
 
 		std::string translation = text_id_string_to_translation[textid_string];
-		printf("Translation: %s\n", translation.c_str());
+		// printf("Translation: %s\n", translation.c_str());
 
 		return il2cpp_string_new(translation.data());
 	}
@@ -453,8 +453,52 @@ namespace
 			textcommon_settextid_hook(_this, textid);
 		}
 
+		// std::string str_utf8 = il2cppstring_to_utf8(str->start_char);
+		// if (str_utf8 == "サークル")
+		// {
+		// 	printf("FOUND IT =============================\n");
+		// }
+
 
 		return reinterpret_cast<decltype(textcommon_settext_hook)*>(textcommon_settext_orig)(_this, str);
+	}
+
+	void* textcommon_gettext_orig = nullptr;
+	Il2CppString* textcommon_gettext_hook (void* _this)
+	{
+		Il2CppString* orig_text = reinterpret_cast<decltype(textcommon_gettext_hook)*>(textcommon_gettext_orig)(_this);
+		
+		std::string orig_text_utf8 = il2cppstring_to_utf8(orig_text->start_char);
+		std::string orig_text_json = il2cppstring_to_jsonstring(orig_text->start_char);
+
+		Il2CppString* textid_string = textcommon_gettextid_string_hook(_this);
+
+		int textid = textcommon_gettextid_hook(_this);
+
+		if (textid_string == nullptr || textid_string->length == 0)
+		{
+			return orig_text;
+		}
+
+		std::string textid_string_utf8 = il2cppstring_to_jsonstring(textid_string->start_char);
+
+		// printf("get_text: %d %s: %s\n", textid, textid_string_utf8.c_str(), orig_text_json.c_str());
+
+		if (orig_text_json.find("<force>") != std::string::npos)
+		{
+			// printf("This should happen\n");
+			return orig_text;
+		}
+
+		if (text_id_string_to_translation.find(textid_string_utf8) == text_id_string_to_translation.end())
+		{
+			// printf("No translation found\n");
+			return orig_text;
+		}
+
+		std::string translation = text_id_string_to_translation[textid_string_utf8];
+		// printf("Translation found\n");
+		return il2cpp_string_new(translation.data());
 	}
 
 	void* load_library_w_orig = nullptr;
@@ -543,7 +587,6 @@ namespace
 			MH_EnableHook(textcommon_settext_addr_offset);
 
 
-
 			// get_textid
 			auto textcommon_gettextid_addr = il2cpp_class_get_method_from_name(textcommon_class, "get_TextId", 0)->methodPointer;
 			printf("textcommon_gettextid_addr: %p\n", textcommon_gettextid_addr);
@@ -575,6 +618,18 @@ namespace
 
 			MH_CreateHook(textcommon_gettextid_string_addr_offset, textcommon_gettextid_string_hook, &textcommon_gettextid_string_orig);
 			MH_EnableHook(textcommon_gettextid_string_addr_offset);
+
+
+			// get_text
+			auto textcommon_gettext_addr = il2cpp_class_get_method_from_name(textcommon_class, "get_text", 0)->methodPointer;
+			printf("textcommon_gettext_addr: %p\n", textcommon_gettext_addr);
+
+			auto textcommon_gettext_addr_offset = reinterpret_cast<void*>(textcommon_gettext_addr);
+			printf("textcommon_gettext_addr_offset: %p\n", textcommon_gettext_addr_offset);
+
+			MH_CreateHook(textcommon_gettext_addr_offset, textcommon_gettext_hook, &textcommon_gettext_orig);
+			MH_EnableHook(textcommon_gettext_addr_offset);
+
 
 			import_translations();
 
