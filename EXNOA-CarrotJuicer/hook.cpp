@@ -15,6 +15,7 @@
 #include "responses.hpp"
 #include "notifier.hpp"
 #include "requests.hpp"
+#include "sha256.h"
 
 using namespace std::literals;
 
@@ -133,7 +134,7 @@ namespace
 				continue;
 			}
 
-			printf("Importing %s: %s\n", textidstring.c_str(), translation.c_str());
+			// printf("Importing %s: %s\n", textidstring.c_str(), translation.c_str());
 
 			replaceAll(translation, "\\n", "\n");
 			replaceAll(translation, "\\r", "\r");
@@ -209,6 +210,8 @@ namespace
 		int compressedSize,
 		int dstCapacity)
 	{
+		import_translations();
+
 		const int ret = reinterpret_cast<decltype(LZ4_decompress_safe_ext_hook)*>(LZ4_decompress_safe_ext_orig)(
 			src, dst, compressedSize, dstCapacity);
 
@@ -241,8 +244,6 @@ namespace
 		int srcSize,
 		int dstCapacity)
 	{
-		import_translations();
-
 		const int ret = reinterpret_cast<decltype(LZ4_compress_default_ext_hook)*>(LZ4_compress_default_ext_orig)(
 			src, dst, srcSize, dstCapacity);
 
@@ -301,12 +302,54 @@ namespace
 	{
 		std::string str_utf8 = il2cppstring_to_utf8(str->start_char);
 		std::string str_json = il2cppstring_to_jsonstring(str->start_char);
-		// printf("PopulateWithErrors: %s\n", str_json.c_str());
+		
+		SHA256 sha256;
+		auto str_hash = sha256(str_utf8);
+		printf("PopulateWithErrors: %s\n", str_json.c_str());
+		printf("^ Hash: %s\n", str_hash.c_str());
+
+
+		if (text_id_string_to_translation.find(str_hash) != text_id_string_to_translation.end())
+		{
+			// printf("Found hashed translation for %s\n", str_json.c_str());
+			str_utf8 = text_id_string_to_translation[str_hash];
+		}
 
 		if (str_utf8.find("<nb>") != std::string::npos)
 		{
 			replaceAll(str_utf8, "<nb>", "");
 			settings->horizontalOverflow = 1;
+			settings->generateOutOfBounds = true;
+		}
+		if (str_utf8.find("<ho>") != std::string::npos)
+		{
+			replaceAll(str_utf8, "<ho>", "");
+			settings->horizontalOverflow = 1;
+		}
+		if (str_utf8.find("<vo>") != std::string::npos)
+		{
+			replaceAll(str_utf8, "<vo>", "");
+			settings->verticalOverflow = 1;
+		}
+		if (str_utf8.find("<oob>") != std::string::npos)
+		{
+			replaceAll(str_utf8, "<oob>", "");
+			settings->generateOutOfBounds = true;
+		}
+		if (str_utf8.find("<fit>") != std::string::npos)
+		{
+			replaceAll(str_utf8, "<fit>", "");
+			settings->resizeTextForBestFit = true;
+		}
+		if (str_utf8.find("<ub>") != std::string::npos)
+		{
+			replaceAll(str_utf8, "<ub>", "");
+			settings->updateBounds = true;
+		}
+		if (str_utf8.find("<ag>") != std::string::npos)
+		{
+			replaceAll(str_utf8, "<ag>", "");
+			settings->alignByGeometry = true;
 		}
 		if (str_utf8.find("<slogan>") != std::string::npos)
 		{
@@ -320,6 +363,7 @@ namespace
 		}
 
 		Il2CppString* new_str = il2cpp_string_new(str_utf8.data());
+		settings->richText = true;
 
 		return reinterpret_cast<decltype(populate_with_errors_hook)*>(populate_with_errors_orig)(_this, new_str, settings, context);
 	}

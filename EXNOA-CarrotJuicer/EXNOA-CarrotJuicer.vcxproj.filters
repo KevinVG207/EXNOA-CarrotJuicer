@@ -63,6 +63,9 @@
     <ClCompile Include="requests.cpp">
       <Filter>Source Files\requests</Filter>
     </ClCompile>
+    <ClCompile Include="sha256.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="version.def">
@@ -98,6 +101,9 @@
     </ClInclude>
     <ClInclude Include="hook.hpp">
       <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="sha256.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

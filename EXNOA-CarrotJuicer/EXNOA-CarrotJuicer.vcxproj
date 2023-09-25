@@ -157,6 +157,7 @@
     <ClCompile Include="proxy.cpp" />
     <ClCompile Include="requests.cpp" />
     <ClCompile Include="responses.cpp" />
+    <ClCompile Include="sha256.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="version.def" />
@@ -173,6 +174,7 @@
     <ClInclude Include="requests.hpp" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="responses.hpp" />
+    <ClInclude Include="sha256.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="EXNOA-CarrotJuicer.rc" />
