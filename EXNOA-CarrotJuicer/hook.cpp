@@ -8,6 +8,7 @@
 #include <MinHook.h>
 #include <map>
 #include <sstream>
+#include <set>
 
 #include "hook.hpp"
 #include "config.hpp"
@@ -26,6 +27,7 @@ namespace
 	std::map<std::string, std::string> text_id_string_to_translation;
 	bool tl_first_check = true;
 	std::filesystem::file_time_type tl_last_modified;
+	std::set<Il2CppString*> stringid_pointers;
 
 	void* find_nested_class_by_name(void* klass, const char* name)
 	{
@@ -210,6 +212,7 @@ namespace
 		int compressedSize,
 		int dstCapacity)
 	{
+		// printf("LZ4_decompress_safe_ext_hook\n");
 		import_translations();
 
 		const int ret = reinterpret_cast<decltype(LZ4_decompress_safe_ext_hook)*>(LZ4_decompress_safe_ext_orig)(
@@ -244,6 +247,8 @@ namespace
 		int srcSize,
 		int dstCapacity)
 	{
+		// printf("LZ4_compress_default_ext_hook\n");
+
 		const int ret = reinterpret_cast<decltype(LZ4_compress_default_ext_hook)*>(LZ4_compress_default_ext_orig)(
 			src, dst, srcSize, dstCapacity);
 
@@ -300,6 +305,8 @@ namespace
 	void* populate_with_errors_orig = nullptr;
 	bool populate_with_errors_hook(void* _this, Il2CppString* str, TextGenerationSettings_t* settings, void* context)
 	{
+		// printf("populate_with_errors_hook\n");
+
 		std::string str_utf8 = il2cppstring_to_utf8(str->start_char);
 		std::string str_json = il2cppstring_to_jsonstring(str->start_char);
 		
@@ -324,11 +331,21 @@ namespace
 		if (str_utf8.find("<ho>") != std::string::npos)
 		{
 			replaceAll(str_utf8, "<ho>", "");
+			settings->horizontalOverflow = 0;
+		}
+		if (str_utf8.find("<nho>") != std::string::npos)
+		{
+			replaceAll(str_utf8, "<nho>", "");
 			settings->horizontalOverflow = 1;
 		}
 		if (str_utf8.find("<vo>") != std::string::npos)
 		{
 			replaceAll(str_utf8, "<vo>", "");
+			settings->verticalOverflow = 0;
+		}
+		if (str_utf8.find("<nvo>") != std::string::npos)
+		{
+			replaceAll(str_utf8, "<nvo>", "");
 			settings->verticalOverflow = 1;
 		}
 		if (str_utf8.find("<oob>") != std::string::npos)
@@ -373,6 +390,7 @@ namespace
 	void* textcommon_gettextid_orig = nullptr;
 	int textcommon_gettextid_hook (void* _this)
 	{
+		// printf("textcommon_gettextid_hook\n");
 		return reinterpret_cast<decltype(textcommon_gettextid_hook)*>(textcommon_gettextid_orig)(_this);
 	}
 
@@ -380,6 +398,7 @@ namespace
 	void* textcommon_settextid_orig = nullptr;
 	void* textcommon_settextid_hook (void* _this, int id)
 	{
+		// printf("textcommon_settextid_hook\n");
 		return reinterpret_cast<decltype(textcommon_settextid_hook)*>(textcommon_settextid_orig)(_this, id);
 	}
 
@@ -387,12 +406,15 @@ namespace
 	void* textcommon_gettextid_string_orig = nullptr;
 	Il2CppString* textcommon_gettextid_string_hook (void* _this)
 	{
+		// printf("textcommon_gettextid_string_hook\n");
 		return reinterpret_cast<decltype(textcommon_gettextid_string_hook)*>(textcommon_gettextid_string_orig)(_this);
 	}
 
 	void* localize_jp_get_orig = nullptr;
 	Il2CppString* localize_jp_get_hook(int id)
 	{
+		// printf("localize_jp_get_hook\n");
+
 		Il2CppString* orig_text = reinterpret_cast<decltype(localize_jp_get_hook)*>(localize_jp_get_orig)(id);
 
 		// printf("=== JP GET ===");
@@ -438,10 +460,13 @@ namespace
 		}
 
 		bool first = true;
-		for (int i = 1; i <= 6000; i++)
+		for (int i = 1; i <= 7000; i++)
 		{
 			textcommon_settextid_hook(textcommon_obj, i);
 			Il2CppString* textid_string = textcommon_gettextid_string_hook(textcommon_obj);
+
+			stringid_pointers.insert(textid_string);
+
 			Il2CppString* jp_text = localize_jp_get_hook(i);
 
 			if (jp_text->length == 0){
@@ -483,6 +508,8 @@ namespace
 	void* textcommon_settext_orig = nullptr;
 	void* textcommon_settext_hook (void* _this, Il2CppString* str)
 	{
+		// printf("textcommon_settext_hook\n");
+
 		// std::string str_utf8 = il2cppstring_to_jsonstring(str->start_char);
 		// printf("TextCommon.set_text: %s\n", str_utf8.c_str());
 
@@ -497,12 +524,6 @@ namespace
 			textcommon_settextid_hook(_this, textid);
 		}
 
-		// std::string str_utf8 = il2cppstring_to_utf8(str->start_char);
-		// if (str_utf8 == "サークル")
-		// {
-		// 	printf("FOUND IT =============================\n");
-		// }
-
 
 		return reinterpret_cast<decltype(textcommon_settext_hook)*>(textcommon_settext_orig)(_this, str);
 	}
@@ -510,38 +531,37 @@ namespace
 	void* textcommon_gettext_orig = nullptr;
 	Il2CppString* textcommon_gettext_hook (void* _this)
 	{
+		// printf("textcommon_gettext_hook\n");
+
 		Il2CppString* orig_text = reinterpret_cast<decltype(textcommon_gettext_hook)*>(textcommon_gettext_orig)(_this);
+
+		// return orig_text;
 		
 		std::string orig_text_utf8 = il2cppstring_to_utf8(orig_text->start_char);
 		std::string orig_text_json = il2cppstring_to_jsonstring(orig_text->start_char);
 
-		Il2CppString* textid_string = textcommon_gettextid_string_hook(_this);
 
+		Il2CppString* textid_string = textcommon_gettextid_string_hook(_this);
+		
 		int textid = textcommon_gettextid_hook(_this);
 
-		if (textid_string == nullptr || textid_string->length == 0)
+		if (textid_string == nullptr || stringid_pointers.find(textid_string) == stringid_pointers.end() || textid_string->length == 0)
 		{
 			return orig_text;
 		}
 
 		std::string textid_string_utf8 = il2cppstring_to_jsonstring(textid_string->start_char);
 
-		// printf("get_text: %d %s: %s\n", textid, textid_string_utf8.c_str(), orig_text_json.c_str());
-
 		if (orig_text_json.find("<force>") != std::string::npos)
 		{
-			// printf("This should happen\n");
 			return orig_text;
 		}
 
 		if (text_id_string_to_translation.find(textid_string_utf8) == text_id_string_to_translation.end())
 		{
-			// printf("No translation found\n");
 			return orig_text;
 		}
-
 		std::string translation = text_id_string_to_translation[textid_string_utf8];
-		// printf("Translation found\n");
 		return il2cpp_string_new(translation.data());
 	}
 
