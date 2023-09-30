@@ -9,6 +9,7 @@
 #include <map>
 #include <sstream>
 #include <set>
+#include <math.h>
 
 #include "hook.hpp"
 #include "config.hpp"
@@ -307,6 +308,9 @@ namespace
 	{
 		// printf("populate_with_errors_hook\n");
 
+		// Resize font
+		// settings->fontSize = round(settings->fontSize * 0.9f);
+
 		std::string str_utf8 = il2cppstring_to_utf8(str->start_char);
 		std::string str_json = il2cppstring_to_jsonstring(str->start_char);
 		
@@ -322,6 +326,51 @@ namespace
 			str_utf8 = text_id_string_to_translation[str_hash];
 		}
 
+		if (str_utf8.find("<a7>") != std::string::npos)
+		{
+			replaceAll(str_utf8, "<a7>", "");
+			settings->textAnchor = 0;
+		}
+		if (str_utf8.find("<a8>") != std::string::npos)
+		{
+			replaceAll(str_utf8, "<a8>", "");
+			settings->textAnchor = 1;
+		}
+		if (str_utf8.find("<a9>") != std::string::npos)
+		{
+			replaceAll(str_utf8, "<a9>", "");
+			settings->textAnchor = 2;
+		}
+		if (str_utf8.find("<a4>") != std::string::npos)
+		{
+			replaceAll(str_utf8, "<a4>", "");
+			settings->textAnchor = 3;
+		}
+		if (str_utf8.find("<a5>") != std::string::npos)
+		{
+			replaceAll(str_utf8, "<a5>", "");
+			settings->textAnchor = 4;
+		}
+		if (str_utf8.find("<a6>") != std::string::npos)
+		{
+			replaceAll(str_utf8, "<a6>", "");
+			settings->textAnchor = 5;
+		}
+		if (str_utf8.find("<a1>") != std::string::npos)
+		{
+			replaceAll(str_utf8, "<a1>", "");
+			settings->textAnchor = 6;
+		}
+		if (str_utf8.find("<a2>") != std::string::npos)
+		{
+			replaceAll(str_utf8, "<a2>", "");
+			settings->textAnchor = 7;
+		}
+		if (str_utf8.find("<a3>") != std::string::npos)
+		{
+			replaceAll(str_utf8, "<a3>", "");
+			settings->textAnchor = 8;
+		}
 		if (str_utf8.find("<nb>") != std::string::npos)
 		{
 			replaceAll(str_utf8, "<nb>", "");
