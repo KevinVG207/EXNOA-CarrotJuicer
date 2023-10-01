@@ -29,6 +29,7 @@ namespace
 	bool tl_first_check = true;
 	std::filesystem::file_time_type tl_last_modified;
 	std::set<Il2CppString*> stringid_pointers;
+	bool debug_mode = false;
 
 	void* find_nested_class_by_name(void* klass, const char* name)
 	{
@@ -314,6 +315,13 @@ namespace
 		std::string str_utf8 = il2cppstring_to_utf8(str->start_char);
 		std::string str_json = il2cppstring_to_jsonstring(str->start_char);
 		
+		size_t debug_pos = str_utf8.find("<debug>");
+		if (debug_pos != std::string::npos)
+		{
+			// Remove all until <debug>
+			str_utf8 = str_utf8.substr(debug_pos + 7);
+		}
+
 		SHA256 sha256;
 		auto str_hash = sha256(str_utf8);
 		printf("PopulateWithErrors: %s\n", str_json.c_str());
@@ -423,6 +431,14 @@ namespace
 			replaceAll(str_utf8, "\n", "");
 			settings->horizontalOverflow = 0;
 		}
+		if (str_utf8.find("<br>") != std::string::npos)
+		{
+			replaceAll(str_utf8, "<br>", "\n");
+			if (str_utf8.back() == '\n')
+			{
+				str_utf8.pop_back();
+			}
+		}
 		if (str_utf8.find("<force>") != std::string::npos)
 		{
 			replaceAll(str_utf8, "<force>", "");
@@ -480,12 +496,20 @@ namespace
 		if (text_id_string_to_translation.find(textid_string) == text_id_string_to_translation.end())
 		{
 			// printf("Translation not found\n");
+			if (debug_mode)
+			{
+				return il2cpp_string_new((textid_string + "<debug>" + il2cppstring_to_utf8(orig_text->start_char)).data());
+			}
 			return orig_text;
 		}
 
 		std::string translation = text_id_string_to_translation[textid_string];
 		// printf("Translation: %s\n", translation.c_str());
 
+		if (debug_mode)
+		{
+			return il2cpp_string_new((textid_string + "<debug>" + translation).data());
+		}
 		return il2cpp_string_new(translation.data());
 	}
 
@@ -493,16 +517,15 @@ namespace
 	void index_text(void* textcommon_obj)
 	{
 		printf("Indexing text\n");
-		bool dump = false;
 		std::string file_name = "assembly_dump.json";
 		if (file_exists(file_name))
 		{
-			dump = true;
+			debug_mode = true;
 			printf("Dumping text to file.\n");
 		}
 
 		std::ofstream outfile;
-		if (dump)
+		if (debug_mode)
 		{
 			outfile.open(file_name, std::ios_base::trunc);
 			outfile << "{\n";
@@ -529,7 +552,7 @@ namespace
 
 			text_id_to_string[i] = textid_string_utf8;
 
-			if (dump)
+			if (debug_mode)
 			{
 				if (!first)
 				{
@@ -541,7 +564,7 @@ namespace
 			}
 		}
 
-		if (dump)
+		if (debug_mode)
 		{
 			outfile << "\n}";
 			outfile.close();
@@ -611,6 +634,11 @@ namespace
 			return orig_text;
 		}
 		std::string translation = text_id_string_to_translation[textid_string_utf8];
+		
+		if (debug_mode)
+		{
+			return il2cpp_string_new((textid_string_utf8 + "<debug>" + translation).data());
+		}
 		return il2cpp_string_new(translation.data());
 	}
 
