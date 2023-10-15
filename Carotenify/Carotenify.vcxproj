@@ -162,6 +162,12 @@
   <ItemGroup>
     <ResourceCompile Include="Carotenify.rc" />
   </ItemGroup>
+  <ItemGroup>
+    <MASM Include="version.asm" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="version.def" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
     <Import Project="$(VCTargetsPath)\BuildCustomizations\masm.targets" />

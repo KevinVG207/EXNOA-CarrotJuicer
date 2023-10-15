@@ -44,4 +44,14 @@
       <Filter>Resource Files</Filter>
     </ResourceCompile>
   </ItemGroup>
+  <ItemGroup>
+    <MASM Include="version.asm">
+      <Filter>Source Files</Filter>
+    </MASM>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="version.def">
+      <Filter>Source Files</Filter>
+    </None>
+  </ItemGroup>
 </Project>
