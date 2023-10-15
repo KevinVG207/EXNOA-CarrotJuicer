@@ -12,11 +12,6 @@
 #include <math.h>
 
 #include "hook.hpp"
-#include "config.hpp"
-#include "edb.hpp"
-#include "responses.hpp"
-#include "notifier.hpp"
-#include "requests.hpp"
 #include "sha256.h"
 
 using namespace std::literals;
@@ -220,24 +215,6 @@ namespace
 		const int ret = reinterpret_cast<decltype(LZ4_decompress_safe_ext_hook)*>(LZ4_decompress_safe_ext_orig)(
 			src, dst, compressedSize, dstCapacity);
 
-		if (config::get().save_response)
-		{
-			const auto out_path = std::string("CarrotJuicer\\").append(current_time()).append("R.msgpack");
-			write_file(out_path, dst, ret);
-			std::cout << "wrote response to " << out_path << "\n";
-		}
-
-		const std::string data(dst, ret);
-
-		auto notifier_thread = std::thread([&]
-		{
-			notifier::notify_response(data);
-		});
-
-		responses::print_response_additional_info(data);
-
-		notifier_thread.join();
-
 		return ret;
 	}
 
@@ -254,55 +231,8 @@ namespace
 		const int ret = reinterpret_cast<decltype(LZ4_compress_default_ext_hook)*>(LZ4_compress_default_ext_orig)(
 			src, dst, srcSize, dstCapacity);
 
-		if (config::get().save_request)
-		{
-			const auto out_path = std::string("CarrotJuicer\\").append(current_time()).append("Q.msgpack");
-			write_file(out_path, src, srcSize);
-			std::cout << "wrote request to " << out_path << "\n";
-		}
-
-		if (config::get().print_request)
-		{
-			const std::string data(src, srcSize);
-			requests::print_request_additional_info(data);
-		}
-
 		return ret;
 	}
-
-	void bootstrap_carrot_juicer()
-	{
-		std::filesystem::create_directory("CarrotJuicer");
-
-		const auto libnative_module = GetModuleHandle(L"libnative.dll");
-		printf("libnative.dll at %p\n", libnative_module);
-		if (libnative_module == nullptr)
-		{
-			return;
-		}
-
-		const auto LZ4_decompress_safe_ext_ptr = GetProcAddress(libnative_module, "LZ4_decompress_safe_ext");
-		printf("LZ4_decompress_safe_ext at %p\n", LZ4_decompress_safe_ext_ptr);
-		if (LZ4_decompress_safe_ext_ptr == nullptr)
-		{
-			return;
-		}
-		MH_CreateHook(LZ4_decompress_safe_ext_ptr, LZ4_decompress_safe_ext_hook, &LZ4_decompress_safe_ext_orig);
-		MH_EnableHook(LZ4_decompress_safe_ext_ptr);
-
-		const auto LZ4_compress_default_ext_ptr = GetProcAddress(libnative_module, "LZ4_compress_default_ext");
-		printf("LZ4_compress_default_ext at %p\n", LZ4_compress_default_ext_ptr);
-		if (LZ4_compress_default_ext_ptr == nullptr)
-		{
-			return;
-		}
-		MH_CreateHook(LZ4_compress_default_ext_ptr, LZ4_compress_default_ext_hook, &LZ4_compress_default_ext_orig);
-		MH_EnableHook(LZ4_compress_default_ext_ptr);
-
-		// const auto umamusume_module = GetModuleHandle(L"umamusume.dll");
-		// const auto get_class = GetProcAddress
-	}
-
 
 	void* populate_with_errors_orig = nullptr;
 	bool populate_with_errors_hook(void* _this, Il2CppString* str, TextGenerationSettings_t* settings, void* context)
@@ -774,8 +704,6 @@ namespace
 
 			import_translations();
 
-			bootstrap_carrot_juicer();
-
 			MH_DisableHook(LoadLibraryW);
 			MH_RemoveHook(LoadLibraryW);
 
@@ -799,11 +727,6 @@ void attach()
 
 	MH_CreateHook(LoadLibraryW, load_library_w_hook, &load_library_w_orig);
 	MH_EnableHook(LoadLibraryW);
-
-	config::load();
-
-	std::thread(edb::init).detach();
-	std::thread(notifier::init).detach();
 }
 
 void detach()

@@ -1,6 +1,6 @@
 //{{NO_DEPENDENCIES}}
 // Microsoft Visual C++ generated include file.
-// Used by EXNOA-CarrotJuicer.rc
+// Used by Carotenify.rc
 
 // Next default values for new objects
 // 

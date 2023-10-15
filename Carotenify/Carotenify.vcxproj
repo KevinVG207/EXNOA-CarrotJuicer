@@ -18,8 +18,9 @@
     <VCProjectVersion>16.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
     <ProjectGuid>{2e470f07-1a74-4bab-a9f8-adcecfe80d86}</ProjectGuid>
-    <RootNamespace>EXNOACarrotJuicer</RootNamespace>
+    <RootNamespace>Carotenify</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <ProjectName>Carotenify</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
@@ -148,36 +149,18 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="config.cpp" />
     <ClCompile Include="dllmain.cpp" />
-    <ClCompile Include="edb.cpp" />
     <ClCompile Include="hook.cpp" />
-    <ClCompile Include="mdb.cpp" />
-    <ClCompile Include="notifier.cpp" />
     <ClCompile Include="proxy.cpp" />
-    <ClCompile Include="requests.cpp" />
-    <ClCompile Include="responses.cpp" />
     <ClCompile Include="sha256.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="version.def" />
-  </ItemGroup>
-  <ItemGroup>
-    <MASM Include="version.asm" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="config.hpp" />
-    <ClInclude Include="edb.hpp" />
     <ClInclude Include="hook.hpp" />
-    <ClInclude Include="mdb.hpp" />
-    <ClInclude Include="notifier.hpp" />
-    <ClInclude Include="requests.hpp" />
     <ClInclude Include="resource.h" />
-    <ClInclude Include="responses.hpp" />
     <ClInclude Include="sha256.h" />
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="EXNOA-CarrotJuicer.rc" />
+    <ResourceCompile Include="Carotenify.rc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
